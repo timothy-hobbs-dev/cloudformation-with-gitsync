@@ -1,0 +1,174 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Parameters:
+  User1Email:
+    Type: String
+    Description: Email for User1 stored in Parameter Store
+  User2Email:
+    Type: String
+    Description: Email for User2 stored in Parameter Store
+
+Resources:
+  ## S3 Read-Only Group
+  S3ReadOnlyGroup:
+    Type: "AWS::IAM::Group"
+    Properties:
+      GroupName: "S3ReadOnlyGroup"
+      Policies:
+        - PolicyName: "S3ReadOnlyPolicy"
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: "Allow"
+                Action:
+                  - "s3:GetObject"
+                  - "s3:ListBucket"
+                Resource: "*"
+
+  ## EC2 Group with S3 Access
+  EC2GroupWithS3Access:
+    Type: "AWS::IAM::Group"
+    Properties:
+      GroupName: "EC2GroupWithS3Access"
+      Policies:
+        - PolicyName: "EC2S3ReadOnlyPolicy"
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: "Allow"
+                Action:
+                  - "s3:GetObject"
+                  - "s3:ListBucket"
+                Resource: "*"
+
+  ## Secrets Manager - OTP for IAM Users
+  IAMUserSecret:
+    Type: "AWS::SecretsManager::Secret"
+    Properties:
+      Name: "IAMUserSecret"
+      Description: "Auto-generated one-time password for IAM users"
+      GenerateSecretString:
+        SecretStringTemplate: '{"Password":""}'
+        GenerateStringKey: "Password"
+        PasswordLength: 16
+        ExcludeCharacters: '"@/\\' # adjust as needed
+
+  ## IAM User 1
+  IAMUser1:
+    Type: "AWS::IAM::User"
+    Properties:
+      UserName: "User1"
+      Groups:
+        - Ref: "S3ReadOnlyGroup"
+      LoginProfile:
+        Password: !Sub "{{resolve:secretsmanager:${IAMUserSecret}::Password}}"
+        PasswordResetRequired: true
+
+  ## IAM User 2
+  IAMUser2:
+    Type: "AWS::IAM::User"
+    Properties:
+      UserName: "User2"
+      Groups:
+        - Ref: "EC2GroupWithS3Access"
+      LoginProfile:
+        Password: !Sub "{{resolve:secretsmanager:${IAMUserSecret}::Password}}"
+        PasswordResetRequired: true
+
+  IAMUser3:
+    Type: "AWS::IAM::User"
+    Properties:
+      UserName: "User97"
+      Groups:
+        - Ref: "EC2GroupWithS3Access"
+      LoginProfile:
+        Password: !Sub "{{resolve:secretsmanager:${IAMUserSecret}::Password}}"
+        PasswordResetRequired: true
+
+  ## Parameter Store for emails
+  User1EmailParameter:
+    Type: "AWS::SSM::Parameter"
+    Properties:
+      Name: "User1Email"
+      Type: "String"
+      Value: !Ref "User1Email"
+
+  User2EmailParameter:
+    Type: "AWS::SSM::Parameter"
+    Properties:
+      Name: "User2Email"
+      Type: "String"
+      Value: !Ref "User2Email"
+
+  ## EventBridge Rule to detect user creation
+  UserCreationEventRule:
+    Type: "AWS::Events::Rule"
+    Properties:
+      EventPattern:
+        source:
+          - "aws.iam"
+        detail-type:
+          - "AWS API Call via CloudTrail"
+        detail:
+          eventSource:
+            - "iam.amazonaws.com"
+          eventName:
+            - "CreateUser"
+      Targets:
+        - Arn: !GetAtt SendEmailLambda.Arn
+          Id: "SendEmailLambdaTarget"
+
+  ## Lambda Function for sending user info
+  SendEmailLambda:
+    Type: "AWS::Lambda::Function"
+    Properties:
+      FunctionName: "SendEmailLambda"
+      Handler: "index.handler"
+      Runtime: "python3.8"
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Code:
+        ZipFile: |
+          import boto3
+          import os
+
+          def handler(event, context):
+              ssm = boto3.client('ssm')
+              secrets_manager = boto3.client('secretsmanager')
+
+              # Retrieve user emails from SSM
+              user1_email = ssm.get_parameter(Name='User1Email')['Parameter']['Value']
+              user2_email = ssm.get_parameter(Name='User2Email')['Parameter']['Value']
+
+              # Retrieve password from Secrets Manager
+              secret_value = secrets_manager.get_secret_value(SecretId='IAMUserSecret')
+              password = eval(secret_value['SecretString'])['Password']
+
+              # Print user credentials (simulates sending an email)
+              print(f"User1 email: {user1_email}, Temporary Password: {password}")
+              print(f"User2 email: {user2_email}, Temporary Password: {password}")
+
+  ## Lambda execution role
+  LambdaExecutionRole:
+    Type: "AWS::IAM::Role"
+    Properties:
+      RoleName: "LambdaExecutionRole"
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: "Allow"
+            Principal:
+              Service: "lambda.amazonaws.com"
+            Action: "sts:AssumeRole"
+      Policies:
+        - PolicyName: "LambdaPolicy"
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: "Allow"
+                Action:
+                  - "ssm:GetParameter"
+                  - "secretsmanager:GetSecretValue"
+                Resource: "*"
+              - Effect: "Allow"
+                Action:
+                  - "logs:*"
+                Resource: "*"
