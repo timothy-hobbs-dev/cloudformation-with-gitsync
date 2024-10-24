@@ -1,5 +1,3 @@
 template-file-path: template.yaml
-parameters:
-  User1Email: "test1@gmail.com"
-  User2Email: "test2@gmail.com"
+parameters: { User1Email: "test1@gmail.com", User2Email: "test2@gmail.com" }
 tags: {}
