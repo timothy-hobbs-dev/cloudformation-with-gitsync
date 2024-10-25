@@ -80,14 +80,14 @@ Resources:
     Properties:
       Name: "User1Email"
       Type: "String"
-      Value: !Ref "User1Email"
+      Value: "test1@gmail.com"
 
   User2EmailParameter:
     Type: "AWS::SSM::Parameter"
     Properties:
       Name: "User2Email"
       Type: "String"
-      Value: !Ref "User2Email"
+      Value: "test2@gmail.com"
 
   ## EventBridge Rule to detect user creation
   UserCreationEventRule:
