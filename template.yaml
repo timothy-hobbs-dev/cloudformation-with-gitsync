@@ -1,11 +1,4 @@
 AWSTemplateFormatVersion: "2010-09-09"
-Parameters:
-  User1Email:
-    Type: String
-    Description: Email for User1 stored in Parameter Store
-  User2Email:
-    Type: String
-    Description: Email for User2 stored in Parameter Store
 
 Resources:
   ## S3 Read-Only Group
@@ -74,21 +67,6 @@ Resources:
         Password: !Sub "{{resolve:secretsmanager:${IAMUserSecret}::Password}}"
         PasswordResetRequired: true
 
-  ## Parameter Store for emails
-  User1EmailParameter:
-    Type: "AWS::SSM::Parameter"
-    Properties:
-      Name: "User1Email"
-      Type: "String"
-      Value: "test1@gmail.com"
-
-  User2EmailParameter:
-    Type: "AWS::SSM::Parameter"
-    Properties:
-      Name: "User2Email"
-      Type: "String"
-      Value: "test2@gmail.com"
-
   ## EventBridge Rule to detect user creation
   UserCreationEventRule:
     Type: "AWS::Events::Rule"
@@ -118,15 +96,14 @@ Resources:
       Code:
         ZipFile: |
           import boto3
-          import os
 
           def handler(event, context):
               ssm = boto3.client('ssm')
               secrets_manager = boto3.client('secretsmanager')
 
-              # Retrieve user emails from SSM
-              user1_email = ssm.get_parameter(Name='User1Email')['Parameter']['Value']
-              user2_email = ssm.get_parameter(Name='User2Email')['Parameter']['Value']
+              # Hardcoded user emails
+              user1_email = "user1@example.com"
+              user2_email = "user2@example.com"
 
               # Retrieve password from Secrets Manager
               secret_value = secrets_manager.get_secret_value(SecretId='IAMUserSecret')
