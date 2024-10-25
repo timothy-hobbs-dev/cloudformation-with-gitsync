@@ -1,11 +1,11 @@
 AWSTemplateFormatVersion: "2010-09-09"
-# Parameters:
-#   User1Email:
-#     Type: String
-#     Description: Email for User1 stored in Parameter Store
-#   User2Email:
-#     Type: String
-#     Description: Email for User2 stored in Parameter Store
+Parameters:
+  User1Email:
+    Type: String
+    Description: Email for User1 stored in Parameter Store
+  User2Email:
+    Type: String
+    Description: Email for User2 stored in Parameter Store
 
 Resources:
   ## S3 Read-Only Group
